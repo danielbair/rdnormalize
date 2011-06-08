@@ -37,8 +37,8 @@ except ImportError:
 
 
 try:
-    check = subprocess.check_output(['r128-scanner', '-h'],
-                                    stderr=subprocess.STDOUT)
+    check = subprocess.Popen(['r128-scanner', '-h'],
+                             stderr=subprocess.PIPE,stdout=subprocess.PIPE)
 except OSError:
     print "r128-scanner not found. It can be built from the libebur128 source at  "
     print "http://www-public.tu-bs.de:8080/~y0035293/libebur128.html"
@@ -146,7 +146,7 @@ def main(LkTarget, args):
             continue
     
         if args.verbose:
-            print "Cut: ", cut_name
+            print "Cut:", cut_name
         LkMeasured, gain = analyze(filename, LkTarget)
         if args.verbose:
             print "\tLkMeasured:", LkMeasured / 10.0
