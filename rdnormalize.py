@@ -15,13 +15,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import argparse
+try:
+    import argparse
+except ImportError:
+    print"You do not have argparse installed."
+    print "See: http://pypi.python.org/pypi/argparse"
+    sys.exit(1)
+    
 import os
 import subprocess
 import sys
+import logging
+from time import strftime
 
 import ConfigParser
-
 try:
     import MySQLdb
     import MySQLdb.cursors
@@ -32,11 +39,11 @@ except ImportError:
 
 
 try:
-    check = subprocess.Popen(['r128-scanner', '-h'],
+    check = subprocess.Popen(['loudness', 'scan', '-h'],
                              stderr=subprocess.PIPE,stdout=subprocess.PIPE)
 except OSError:
     print "r128-scanner not found. It can be built from the libebur128 source at  "
-    print "https://github.com/jiixyj/libebur128"
+    print "http://www-public.tu-bs.de:8080/~y0035293/libebur128.html"
     sys.exit(1)
 except subprocess.CalledProcessError:
     print "r128-scanner not working."
@@ -103,16 +110,23 @@ class rddb():
 
 
 def analyze(filename, LkTarget):
-    s = subprocess.Popen(['r128-scanner', filename], stderr=subprocess.PIPE,
+    s = subprocess.Popen(['loudness', 'scan', filename], stderr=subprocess.PIPE,
                                         stdout=subprocess.PIPE)
     output = s.communicate()[0]
     words = output.split()
-    word = words[1]
+    word = words[0]
+#    print "output =", output 
+#    print "words =", words
+#    print "word =", word
     
     result = word.replace('.','')
-    LkMeasured = int(word.replace('.',''))
-    
-    gain = LkTarget - LkMeasured
+    logging.debug(result)
+    if word != '-inf':
+        LkMeasured = int(word.replace('.',''))
+        gain = LkTarget - LkMeasured
+    else:
+        LkMeasured = -999
+        gain = 0
 
     return LkMeasured, gain
 
@@ -130,18 +144,30 @@ def checkTable():
         db.addLoudnessColumns()
 
 def main(LkTarget, args):
+    rdconf = ConfigParser.RawConfigParser()
+    rdconf.read('/etc/rd.conf')
+    try:
+        audroot = rdconf.get('Cae', 'AudioRoot')
+    except ConfigParser.NoOptionError:
+        audroot = '/var/snd'
+    try:
+        audextn = rdconf.get('Cae', 'AudioExtension')
+    except ConfigParser.NoOptionError:
+        audextn = 'wav'
+
     for row in db.unanalyzedCuts(args.group, LkTarget):
         if not row:
             break
 
         cut_name = row[0]
-        filename = '/var/snd/' + cut_name + '.wav'
+        filename = audroot + "/" + cut_name +"." + audextn
 
         if not os.path.exists(filename):
             continue
     
         if args.verbose:
-            print "Cut:", cut_name
+	    print strftime("%Y-%m-%d %H:%M:%S")
+            print "\tCut:", cut_name
         LkMeasured, gain = analyze(filename, LkTarget)
         if args.verbose:
             print "\tLkMeasured:", LkMeasured / 10.0
@@ -152,11 +178,9 @@ def main(LkTarget, args):
 
 parser = argparse.ArgumentParser(
         description='Normalize cuts in a group.',
-        epilog="""The author recommends to import audio at a peak normalization of -1 dBFS"""
-        """when using the WAV format, then use this script to lower the playback gain level."""
-        """\nSee http://tech.ebu.ch/loudness for more information."""
+        epilog="See http://tech.ebu.ch/loudness for more information."
                                 )
-parser.add_argument('-v', dest='verbose', action='store_true')
+parser.add_argument('-v', dest='verbose', action='store_true', help="""Verbose output""")
 parser.add_argument('--drop-columns', dest='drop_columns',
         action='store_true', help=""" Remove extra columns added by to your
         database by this script. This will not restore your previous gain levels
