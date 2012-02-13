@@ -42,11 +42,11 @@ try:
     check = subprocess.Popen(['loudness', 'scan', '-h'],
                              stderr=subprocess.PIPE,stdout=subprocess.PIPE)
 except OSError:
-    print "r128-scanner not found. It can be built from the libebur128 source at  "
-    print "http://www-public.tu-bs.de:8080/~y0035293/libebur128.html"
+    print "loudness application not found. It can be built from the libebur128 source at  "
+    print "https://github.com/jiixyj/libebur128"
     sys.exit(1)
 except subprocess.CalledProcessError:
-    print "r128-scanner not working."
+    print "loudness application not working."
 
 
 """
