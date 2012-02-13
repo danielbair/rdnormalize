@@ -178,8 +178,11 @@ def main(LkTarget, args):
 
 parser = argparse.ArgumentParser(
         description='Normalize cuts in a group.',
-        epilog="See http://tech.ebu.ch/loudness for more information."
+        epilog="""The author recommends to import audio at a peak normalization of -1 dBFS"""
+        """when using the WAV format, then use this script to lower the playback gain level."""
+        """\nSee http://tech.ebu.ch/loudness for more information."""
                                 )
+
 parser.add_argument('-v', dest='verbose', action='store_true', help="""Verbose output""")
 parser.add_argument('--drop-columns', dest='drop_columns',
         action='store_true', help=""" Remove extra columns added by to your
