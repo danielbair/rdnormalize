@@ -18,7 +18,7 @@
 try:
     import argparse
 except ImportError:
-    print"You do not have argparse installed."
+    print"You do not have argparse installed. "
     print "See: http://pypi.python.org/pypi/argparse"
     sys.exit(1)
     
@@ -26,23 +26,21 @@ import os
 import subprocess
 import sys
 import logging
-from time import strftime
-
 import ConfigParser
+from time import strftime
 try:
     import MySQLdb
     import MySQLdb.cursors
 except ImportError:
-    print "You do not have the MySQL Python module installed."
+    print "You do not have the MySQL Python module installed. "
     print "See: http://pypi.python.org/pypi/MySQL-python"
     sys.exit(1)
 
-
 try:
     check = subprocess.Popen(['loudness', 'scan', '-h'],
-                             stderr=subprocess.PIPE,stdout=subprocess.PIPE)
+        stderr=subprocess.PIPE,stdout=subprocess.PIPE)
 except OSError:
-    print "loudness application not found. It can be built from the libebur128 source at  "
+    print "loudness application not found. It can be built from the libebur128 source at "
     print "https://github.com/jiixyj/libebur128"
     sys.exit(1)
 except subprocess.CalledProcessError:
@@ -56,7 +54,7 @@ Note: Gain is multipled by 100, Loudness by 10
 
 class rddb():
     """Interacts with the mysql database associated with a rivendell system.
-    Reads /etc/rd.conf to find connection details.
+       Reads /etc/rd.conf to find connection details.
     """
 
     def __init__(self):
@@ -76,6 +74,7 @@ class rddb():
         self.cursor.execute("""alter table CUTS 
                                 add column LOUDNESS_MEASURED smallint,
                                 add column LOUDNESS_TARGET smallint""")
+
     def describeCuts(self):
         self.cursor.execute("""describe CUTS""")
         return self.cursor.fetchall()
@@ -84,7 +83,8 @@ class rddb():
         if group == 'ALL':
             self.cursor.execute("""select CUT_NAME from CUTS 
                                     where (LOUDNESS_TARGET is null
-                                        or LOUDNESS_TARGET != %s)
+                                    or LOUDNESS_TARGET != %s)
+                                    order by CUT_NAME
                                 """, (LkTarget))
 
         else:
@@ -93,9 +93,10 @@ class rddb():
                                     where GROUP_NAME = %s
                                     and (CUTS.LOUDNESS_TARGET is null
                                     or CUTS.LOUDNESS_TARGET != %s)
+                                    order by CUT_NAME
                                 """, (group, LkTarget))
-        return self.cursor.fetchall()
 
+        return self.cursor.fetchall()
 
     def setGain(self, cut_name, gain, LkMeasured, LkTarget):
         gain *= 10
@@ -104,23 +105,23 @@ class rddb():
                                 LOUDNESS_TARGET = %s
                                 where CUT_NAME = %s
                             """, (gain, LkMeasured, LkTarget, cut_name))
+
     def dropColumns(self):
         self.cursor.execute("""alter table CUTS drop column LOUDNESS_MEASURED,
-                                drop column LOUDNESS_TARGET""")
-
+                               drop column LOUDNESS_TARGET""")
 
 def analyze(filename, LkTarget):
     s = subprocess.Popen(['loudness', 'scan', filename], stderr=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
+        stdout=subprocess.PIPE)
+
     output = s.communicate()[0]
     words = output.split()
     word = words[0]
-#    print "output =", output 
-#    print "words =", words
-#    print "word =", word
+
+    if args.debug:
+	print strftime("%Y-%m-%d %H:%M:%S")
+        print "loudness output: ", output 
     
-    result = word.replace('.','')
-    logging.debug(result)
     if word != '-inf':
         LkMeasured = int(word.replace('.',''))
         gain = LkTarget - LkMeasured
@@ -146,10 +147,12 @@ def checkTable():
 def main(LkTarget, args):
     rdconf = ConfigParser.RawConfigParser()
     rdconf.read('/etc/rd.conf')
+
     try:
         audroot = rdconf.get('Cae', 'AudioRoot')
     except ConfigParser.NoOptionError:
         audroot = '/var/snd'
+
     try:
         audextn = rdconf.get('Cae', 'AudioExtension')
     except ConfigParser.NoOptionError:
@@ -160,7 +163,7 @@ def main(LkTarget, args):
             break
 
         cut_name = row[0]
-        filename = audroot + "/" + cut_name +"." + audextn
+        filename = audroot + "/" + cut_name + "." + audextn
 
         if not os.path.exists(filename):
             continue
@@ -168,33 +171,39 @@ def main(LkTarget, args):
         if args.verbose:
 	    print strftime("%Y-%m-%d %H:%M:%S")
             print "\tCut:", cut_name
+
         LkMeasured, gain = analyze(filename, LkTarget)
+
         if args.verbose:
             print "\tLkMeasured:", LkMeasured / 10.0
             print "\tGain change:", gain / 10.0
             print
-        db.setGain(cut_name, gain, LkMeasured, LkTarget)
 
+        db.setGain(cut_name, gain, LkMeasured, LkTarget)
 
 parser = argparse.ArgumentParser(
         description='Normalize cuts in a group.',
-        epilog="""The author recommends to import audio at a peak normalization of -1 dBFS"""
-        """when using the WAV format, then use this script to lower the playback gain level."""
-        """\nSee http://tech.ebu.ch/loudness for more information."""
-                                )
+        epilog="""The author recommends to import audio at a peak normalization of -1 dBFS
+        when using the WAV format, then use this script to lower the playback gain level.
+        \nSee http://tech.ebu.ch/loudness for more information.""")
 
-parser.add_argument('-v', dest='verbose', action='store_true', help="""Verbose output""")
-parser.add_argument('--drop-columns', dest='drop_columns',
-        action='store_true', help=""" Remove extra columns added by to your
-        database by this script. This will not restore your previous gain levels
-        and will require previously normalized cuts to be re-analyzed if you run
-        this script again.""" )
+parser.add_argument('-v', dest='verbose', action='store_true', help="""Turn on verbose output""")
+
 parser.add_argument('-l', metavar='LUFS', dest='LkTarget',
         action='store', type=float,  default=-23,
         help="""Target loudness level. Defaults to
                 the recommended -23.""")
+
 parser.add_argument('-g', metavar='GROUP', dest='group', type=str,
-        help="group to set gain levels in")
+        help="""Group to set gain levels in. Use 'ALL' to include all groups.""")
+
+parser.add_argument('--drop-columns', dest='drop_columns',
+        action='store_true', help="""Remove extra columns added to your
+        database by this script. This will not restore your previous gain levels
+        and will require previously normalized cuts to be re-analyzed if you run
+        this script again.""")
+
+parser.add_argument('--debug', dest='debug', action='store_true', help="""Turn on debug output""")
 
 args = parser.parse_args()
 
@@ -207,8 +216,9 @@ if args.drop_columns:
 
 checkTable()
 
-LkTarget = int(args.LkTarget *10)
+LkTarget = int(args.LkTarget * 10)
 if LkTarget >= 0:
     LkTarget = 0 - LkTarget
 
 main(LkTarget, args)
+
