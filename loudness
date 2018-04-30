@@ -1,0 +1,64 @@
+#!/bin/bash
+
+show_help() {
+echo 'Usage: loudness scan [OPTION] [FILE]
+
+`loudness` scans audio files according to the EBU R128 standard. It can output loudness and peak information.
+This is a wrapper for ebur128 from the ebumeter debian package using ffmpeg to decompress the file temporarly before scanning.
+
+Main operation mode:
+  scan                       Output loudness and peak information.
+
+Global options:
+  -h, --help                 Display this text.
+  --lufs                     Use absolute units. Default
+  --full                     Print internal values as well.
+  --prob                     Write cumulative probability file.
+'
+exit
+}
+if [ $# -lt 2 ]; then
+	show_help
+fi
+if [ "$1" == "scan" ]; then
+	case "$2" in
+	-h)	show_help
+		;;
+	--help)	show_help
+		;;
+	--full)	opts="--full"
+		;;
+	--prob)	opts="--prob"
+		;;
+	--lufs)	opts="--lufs"
+		;;
+	*)	opts="compat" 
+		;;
+	esac
+	if [ $# -eq 3 ]; then
+		shift 1
+	fi
+	if [ -z "$(which ffmpeg)" ]; then
+		echo "Error: ffmpeg binary not found!"
+		exit 1
+	fi
+	if [ -z "$(which ebur128)" ]; then
+		echo "Error: ebur128 binary not found!"
+		exit 1
+	fi
+	filename="`basename \"$2\"`"
+	tempdir="`mktemp -d`"
+	ffmpeg-progress "$2" "$tempdir/test.wav" 1>&2 
+	if [ -e "$tempdir/test.wav" ]; then
+		if [ $opts = "compat" ]; then
+			loudness="`ebur128 --lufs \"$tempdir/test.wav\" | head -n 1 | cut -d':' -f2 | sed 's/^ *//'`"
+			echo -e "$loudness, $filename\n$loudness"
+		else
+			loudness="`ebur128 $opts \"$tempdir/test.wav\"`"
+			echo -e "$filename\n$loudness"
+		fi
+	fi
+	rm -rf $tempdir 1>/dev/null 2>&1
+else
+	show_help
+fi
